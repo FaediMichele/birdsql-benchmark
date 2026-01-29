@@ -23,6 +23,11 @@ test-benchmark:
 		-d '{"endpoint_url": "http://ai_mock:8001/"}' | jq .
 	@echo "✅ Benchmark triggered successfully."
 
+test-manual-query:
+	@curl -X POST "http://localhost:8000/evaluation/manual" \
+	-H "Content-Type: application/json" \
+	-d "{\"instance_id\": \"$(instance_id)\", \"generated_sql\": \"$(query)\"}" | jq .
+
 up:
 	docker compose up -d --build
 

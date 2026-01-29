@@ -60,6 +60,7 @@ The application is configured via environment variables or a `.env` file.
 - `make down`: Stop and remove containers.
 - `make test`: Verify metadata API endpoints.
 - `make test-benchmark`: Trigger a benchmark run using the Mock AI.
+- `make test-manual-query instance_id="..." query="..."`: Manually test a single SQL query.
 - `make lint`: Run code linting and type checking.
 - `make format`: Auto-format code.
 
@@ -94,6 +95,32 @@ The server runs on `http://localhost:8000`.
 
 - **GET** `/benchmark/`
   List all benchmark jobs.
+
+#### Manual Evaluation
+
+- **POST** `/evaluation/manual`
+  Manually test a single SQL query against a ground truth instance.
+  
+  **Request Body:**
+  ```json
+  {
+    "instance_id": "archeology_scan_1",
+    "generated_sql": "SELECT 1;"
+  }
+  ```
+  **Response:**
+  ```json
+  {
+    "total": 1,
+    "correct": 0,
+    "execution_error": 0,
+    "wrong_result": 1,
+    "accuracy_score": 0.0,
+    "valid_sql_rate": 1.0,
+    "is_correct": false,
+    "error": "The result of the query is not correct"
+  }
+  ```
 
 #### Metadata
 

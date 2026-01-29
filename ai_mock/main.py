@@ -9,9 +9,10 @@ class QueryRequest(BaseModel):
     query: str
 
 
-@app.post("/")
+class QueryResponse(BaseModel):
+    sql: str
+
+
+@app.post("/", response_model=QueryResponse)
 async def generate_sql(request: QueryRequest):
-    # Always return a valid SQL that is likely to fail the exact match but run successfully
-    # Or we can return a syntax error to see if it handles it.
-    # The user asked for "Always return the same query".
-    return {"sql": "SELECT 1;"}
+    return QueryResponse(sql="SELECT 1;")

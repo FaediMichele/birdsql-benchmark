@@ -53,6 +53,8 @@ The system is orchestrated via `docker-compose.yml` and consists of four main se
 *   **`metadata.py`**:
     *   `GET /`: Lists available databases (e.g., "solar_panel").
     *   `GET /{name}`: Returns schema DDL, column meanings, and knowledge base entries for a specific domain.
+*   **`evaluation.py`**:
+    *   `POST /evaluation/manual`: Manually evaluates a single generated SQL query for a given `instance_id`. Returns statistics on the correctness and validity of the query.
 
 ### B. Core Services (`src/services/`)
 *   **`benchmark_service.py`**:
@@ -116,6 +118,9 @@ The system is orchestrated via `docker-compose.yml` and consists of four main se
 │   └── parse_data.py         # Parses raw data to JSONL
 ├── src/
 │   ├── api/                # FastAPI Routers
+│   │   ├── benchmark.py
+│   │   ├── evaluation.py
+│   │   └── metadata.py
 │   ├── db/                 # Database session & config
 │   ├── models/             # SQLModel & Pydantic schemas
 │   ├── services/           # Business logic (benchmark, evaluation, metadata)

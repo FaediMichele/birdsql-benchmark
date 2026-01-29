@@ -1,9 +1,87 @@
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from config import settings
+from models.schemas import ManualEvaluationStats
+from services.dataset import get_benchmark_data
+
+
+class EvaluationError(Exception):
+    pass
+
+
+class InstanceNotFoundError(EvaluationError):
+    pass
+
+
+class GroundTruthQueryError(EvaluationError):
+    pass
+
+
+async def manual_evaluate_query(instance_id: str, generated_sql: str) -> ManualEvaluationStats:
+    """
+    Service function to manually evaluate a generated SQL query against the ground truth.
+    """
+    dataset = get_benchmark_data()
+    instance = next((item for item in dataset if item["instance_id"] == instance_id), None)
+
+    if not instance:
+        raise InstanceNotFoundError("Instance not found")
+
+    db_name = cast(str, instance.get("selected_database"))
+    print(f"DATABASE USED FOR EVALUATION: {db_name}")  # Temporary debug log
+    sol_sql_list = cast(list[str], instance.get("sol_sql", []))
+
+    if not db_name:
+        raise InstanceNotFoundError("Database name not found for instance")
+
+    if not sol_sql_list:
+        raise InstanceNotFoundError("Ground truth SQL not found for instance")
+
+    ground_truth_sql = sol_sql_list[0]
+
+    # Execute ground truth query
+    gt_result, gt_error = await execute_query(db_name, ground_truth_sql)
+    if gt_error:
+        raise GroundTruthQueryError(f"Error executing ground truth query: {gt_error}")
+
+    # Execute generated query
+    gen_result, gen_error = await execute_query(db_name, generated_sql)
+    if gen_error:
+        return ManualEvaluationStats(
+            correct=0,
+            execution_error=1,
+            wrong_result=0,
+            accuracy_score=0.0,
+            valid_sql_rate=0.0,
+            is_correct=False,
+            error=gen_error,
+        )
+
+    is_correct = compare_results(gt_result, gen_result)
+
+    if is_correct:
+        return ManualEvaluationStats(
+            correct=1,
+            execution_error=0,
+            wrong_result=0,
+            accuracy_score=1.0,
+            valid_sql_rate=1.0,
+            is_correct=True,
+            error=None,
+        )
+    else:
+        return ManualEvaluationStats(
+            correct=0,
+            execution_error=0,
+            wrong_result=1,
+            accuracy_score=0.0,
+            valid_sql_rate=1.0,
+            is_correct=False,
+            error="The result of the query is not correct",
+        )
 
 
 async def execute_query(database_name: str, query: str) -> tuple[list[Any] | None, str | None]:
@@ -12,28 +90,17 @@ async def execute_query(database_name: str, query: str) -> tuple[list[Any] | Non
     Returns a tuple of (result_rows, error_message).
     """
     # Construct connection string for the specific database
-    # Assuming the same credentials as the main benchmark connection
     base_url = settings.BENCHMARK_DB_URL
-    # Replace the database name (last part of the URL)
-    # This is a simple string manipulation, ideally we'd use a URL parser
-    # But given the fixed structure "postgresql+asyncpg://user:pass@host:port/dbname"
-    # we can just replace the path.
-
-    # Better approach: Use SQLAlchemy's make_url or URL object, but string replace is faster for this context
-    # provided the format is consistent.
     if "/postgres" in base_url:
         db_url = base_url.replace("/postgres", f"/{database_name}")
     else:
-        # Fallback or error if URL structure isn't as expected
         return None, f"Invalid BENCHMARK_DB_URL format: {base_url}"
 
     try:
         engine = create_async_engine(db_url, echo=False)
         async with engine.connect() as conn:
             result = await conn.execute(text(query))
-            # fetchall returns a list of Row objects
             rows = result.fetchall()
-            # Convert to list of tuples for easier comparison
             return [tuple(row) for row in rows], None
     except Exception as e:
         return None, str(e)
@@ -44,23 +111,16 @@ async def execute_query(database_name: str, query: str) -> tuple[list[Any] | Non
 def compare_results(expected_rows: list[Any] | None, generated_rows: list[Any] | None) -> bool:
     """
     Compares two sets of results.
-    Currently implements a simple set comparison (ignoring order).
     """
     if expected_rows is None or generated_rows is None:
         return False
 
-    # Simple length check
     if len(expected_rows) != len(generated_rows):
         return False
 
-    # Convert to sets for order-independent comparison
-    # Note: This assumes rows contain hashable types.
-    # If rows contain lists/dicts, this will fail.
     try:
         return set(expected_rows) == set(generated_rows)
     except TypeError:
-        # Fallback to sorted list comparison if possible, or just strict list comparison
-        # if elements are not sortable.
         try:
             return sorted(expected_rows, key=lambda x: str(x)) == sorted(generated_rows, key=lambda x: str(x))
         except Exception:

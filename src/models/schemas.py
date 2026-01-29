@@ -60,3 +60,20 @@ class DatabaseMetadata(BaseModel):
     schema_ddl: str
     column_meanings: list[ColumnMeaning]
     knowledge_base: list[KnowledgeBaseItem]
+
+
+class BenchmarkDataItem(BaseModel):
+    instance_id: str
+    selected_database: str
+    sol_sql: list[str]
+
+
+class ManualEvaluationStats(BaseModel):
+    total: int = 1
+    correct: int
+    execution_error: int
+    wrong_result: int
+    accuracy_score: float
+    valid_sql_rate: float
+    is_correct: bool
+    error: str | None
