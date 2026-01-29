@@ -11,6 +11,8 @@ services:
       - db_bench
     volumes:
       - ./data:/app/data
+    networks:
+      - shared_net
 
   db_results:
     image: pgvector/pgvector:pg17
@@ -22,26 +24,43 @@ services:
       - "5433:5432"
     volumes:
       - results_data:/var/lib/postgresql/data
+    networks:
+      - shared_net
 
   db_bench:
-    image: pgvector/pgvector:pg17
+    build:
+      context: .
+      dockerfile: Dockerfile.db_bench
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: password
       POSTGRES_DB: postgres
+      PGDATABASE: postgres
     ports:
       - "5434:5432"
     volumes:
       - bench_data:/var/lib/postgresql/data
       - ./data/bird-interact-full-dumps/init-databases_postgresql.sh:/docker-entrypoint-initdb.d/init-databases_postgresql.sh
       - ./data/bird-interact-full-dumps:/docker-entrypoint-initdb.d/postgre_table_dumps
+      - ./data/livesqlbench-base-full-v1:/docker-entrypoint-initdb.d/data/livesqlbench-base-full-v1
+      - ./scripts/apply_descriptions.sh:/docker-entrypoint-initdb.d/z_apply_descriptions.sh
+      # - ./scripts/z_apply_descriptions.sql:/docker-entrypoint-initdb.d/z_apply_descriptions.sql
       - ./data:/app/data_mount
+    networks:
+      - shared_net
 
   ai_mock:
     build: ./ai_mock
     ports:
       - "8001:8001"
+    networks:
+      - shared_net
 
 volumes:
   results_data:
   bench_data:
+
+networks:
+  shared_net:
+    external: true
+    name: birdsql-benchmark
